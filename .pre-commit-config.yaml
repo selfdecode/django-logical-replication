@@ -1,0 +1,47 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.16.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-json
+        exclude: ".*(\\.devcontainer|\\.vscode).*"
+      - id: check-yaml
+      - id: check-toml
+
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+      - id: debug-statements
+      - id: requirements-txt-fixer
+
+      - id: detect-private-key
+
+      - id: check-added-large-files
+      - id: check-merge-conflict
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: bandit
+        name: Bandit
+        entry: bandit --configfile bandit.yml --quiet
+        language: system
+        files: ".*\\.py"
+        exclude: ".*test.*"
+  - repo: local
+    hooks:
+      - id: mypy
+        name: MyPy
+        entry: mypy
+        language: system
+        files: ".*\\.py"

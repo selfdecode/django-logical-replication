@@ -1,0 +1,3 @@
+CREATE SUBSCRIPTION django_logical_replication_sub CONNECTION 'dbname=django_logical_replication host=master user=django_logical_replication password=password' PUBLICATION django_logical_replication_pub;
+
+CREATE SUBSCRIPTION django_logical_replication_upsert_sub CONNECTION 'dbname=django_logical_replication host=master user=django_logical_replication password=password' PUBLICATION django_logical_replication_upsert_pub;
