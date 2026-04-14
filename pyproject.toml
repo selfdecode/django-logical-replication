@@ -34,7 +34,7 @@ dev = [
 ]
 test = [
     "django-cron @ git+https://github.com/jorenham/django-cron.git",
-    "pytest>=7.4.3",
+    "pytest>=9.0.3",
     "pytest-cov>=4.1.0",
     "pytest-django>=4.7.0",
     "pytest-mock>=3.12.0",
