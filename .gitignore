@@ -1,0 +1,29 @@
+# System/Hidden Files
+.*
+!.gitignore
+!.dockerignore
+!.devcontainer
+!.github
+!.pre-commit-config.yaml
+
+# IntelliJ Idea/PyCharm IDE
+*.iml
+
+# Python
+*.py[cod]
+**/__pycache__
+*.egg-info
+
+# Local development settings
+node_modules
+/sample_project/settings_local.py
+/sample_project/env_local.py
+sample_project/__pycache__/*
+/staticfiles
+/media
+
+# CDK
+cdk.out
+
+sample_project/__pycache__/wsgi.cpython-38.pyc
+.DS_Store

@@ -1,0 +1,75 @@
+x-postgres-common: &postgres-common
+  image: postgres:15
+  restart: always
+  environment: &pg-env
+    POSTGRES_USER: django_logical_replication
+    POSTGRES_PASSWORD: password
+    POSTGRES_DB: django_logical_replication
+    PGUSER: django_logical_replication
+  tmpfs:
+    - /var/lib/postgresql/data:rw,size=1g
+  healthcheck: &pg-healthcheck
+    test: ["CMD-SHELL", "pg_isready -U django_logical_replication -d django_logical_replication"]
+    interval: 1s
+    timeout: 1s
+    retries: 10
+
+services:
+  master:
+    <<: *postgres-common
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "max_connections=10"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "full_page_writes=off"
+      - "-c"
+      - "log_min_messages=PANIC"
+    ports:
+      - 5432:5432
+
+  slave:
+    <<: *postgres-common
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "max_connections=10"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "full_page_writes=off"
+      - "-c"
+      - "log_min_messages=PANIC"
+    depends_on:
+      "master":
+        condition: service_healthy
+    ports:
+      - 5433:5432
+
+  app:
+    depends_on:
+      "master":
+        condition: service_healthy
+      "slave":
+        condition: service_healthy
+    links:
+      - "master"
+      - "slave"
+    build:
+      context: "."
+      dockerfile: "Dockerfile"
+    ports:
+      - "8000:8000"
+    command: "python3 manage.py runserver 0.0.0.0:8000"
