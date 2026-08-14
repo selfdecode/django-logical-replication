@@ -60,38 +60,69 @@ class TestModelClassification:
 class TestLogicalReplication:
     """Integration tests for logical replication - uses real databases."""
 
-    def wait_for_sync(self, timeout=30, check_interval=0.1):
-        """Wait for logical replication to catch up by polling subscription status."""
+    SUBSCRIPTIONS = (
+        "django_logical_replication_sub",
+        "django_logical_replication_upsert_sub",
+    )
+
+    def wait_for_sync(self, timeout=30, check_interval=0.1, strict=True):
+        """Wait for logical replication to catch up by polling subscription status.
+
+        Two conditions must hold, and checking only the first is a race: the apply
+        workers report caught-up on WAL *receipt* while tablesync workers are still
+        running the initial table copy, so every table must additionally reach
+        srsubstate 'r' (ready) before the copied rows are visible on the slave.
+
+        strict=False quiesces on a best-effort basis, for use before teardown:
+        subscriptions left by an earlier test can be enabled but permanently stuck
+        (dead apply worker, inactive slot on master), and those are about to be
+        dropped anyway.
+        """
+        subscriptions = list(self.SUBSCRIPTIONS)
+        subscribed = caught_up = still_copying = 0
         start_time = time()
         while time() - start_time < timeout:
             with connections["slave"].cursor() as cursor:
                 cursor.execute(
+                    "SELECT count(*) FROM pg_subscription WHERE subname = ANY(%s)",
+                    [subscriptions],
+                )
+                (subscribed,) = cursor.fetchone()
+                if not subscribed:
+                    return  # nothing subscribed yet, so nothing to wait for
+
+                cursor.execute(
                     """
-                    SELECT subname,
-                        received_lsn = latest_end_lsn AS is_caught_up,
-                        received_lsn IS NOT NULL AS is_receiving
+                    SELECT count(*)
                     FROM pg_catalog.pg_stat_subscription
-                    WHERE subname IN (
-                        'django_logical_replication_sub',
-                        'django_logical_replication_upsert_sub'
-                    );
-                """
+                    WHERE subname = ANY(%s)
+                        AND received_lsn IS NOT NULL
+                        AND received_lsn = latest_end_lsn
+                    """,
+                    [subscriptions],
                 )
-                rows = cursor.fetchall()
+                (caught_up,) = cursor.fetchone()
 
-                # Check all up to date
-                all_caught_up = all(
-                    is_caught_up and is_receiving
-                    for _, is_caught_up, is_receiving in rows
+                cursor.execute(
+                    "SELECT count(*) FROM pg_subscription_rel WHERE srsubstate <> 'r'"
                 )
+                (still_copying,) = cursor.fetchone()
 
-                if all_caught_up:
-                    return
+            if caught_up == subscribed and not still_copying:
+                return
 
             sleep(check_interval)
 
+        if strict:
+            raise AssertionError(
+                f"Logical replication did not catch up within {timeout}s "
+                f"({caught_up}/{subscribed} subscriptions caught up, "
+                f"{still_copying} tables still copying)"
+            )
+
     def setup_tables(self):
-        self.wait_for_sync()  # let any old operations finish
+        # let any old operations finish; leftovers get dropped below regardless
+        self.wait_for_sync(timeout=5, strict=False)
 
         # Drop subscriptions first (on slave), then publications (on master)
         # These are database-level objects, not dropped with schema

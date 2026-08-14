@@ -24,7 +24,7 @@ services:
       - "-c"
       - "shared_buffers=256MB"
       - "-c"
-      - "max_connections=10"
+      - "max_connections=50"
       - "-c"
       - "fsync=off"
       - "-c"
@@ -43,13 +43,23 @@ services:
       - "-c"
       - "shared_buffers=256MB"
       - "-c"
-      - "max_connections=10"
+      - "max_connections=50"
       - "-c"
       - "fsync=off"
       - "-c"
       - "synchronous_commit=off"
       - "-c"
       - "full_page_writes=off"
+      # the two apply workers consume 2 slots, so the default pool of 4 leaves
+      # only 2 for tablesync across every replicated table; starved tablesync
+      # workers retry on wal_retrieve_retry_interval (5s) and make initial sync
+      # slow enough to race the tests
+      - "-c"
+      - "max_worker_processes=16"
+      - "-c"
+      - "max_logical_replication_workers=12"
+      - "-c"
+      - "max_sync_workers_per_subscription=4"
       - "-c"
       - "log_min_messages=PANIC"
     depends_on:
